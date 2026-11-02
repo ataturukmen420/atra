@@ -71,6 +71,7 @@ a = Analysis(
     hiddenimports=[
         'ctranslate2',
         'sentencepiece',
+        'cv2',
         'win32crypt',
         'win32gui',
         'win32ui',
@@ -93,7 +94,6 @@ a = Analysis(
         'uvicorn',
         'starlette',
         'huggingface_hub',
-        'cv2',
         'tkinter',
         'matplotlib',
         'pytest',
@@ -170,10 +170,13 @@ def build_executable() -> Path:
     shutil.copytree(spm_pkg_dir, internal / "sentencepiece", dirs_exist_ok=True)
 
     # Copy read-only runtime assets to both top-level and _internal so Path(__file__).parents[1] works in all modes
+    bundled_model = ROOT / "models" / "opus-mt-en-tr-ct2"
     for base in (APP_OUT_DIR, internal):
         if base.exists():
             shutil.copytree(ROOT / "assets", base / "assets", dirs_exist_ok=True)
             shutil.copy2(ROOT / "glossary.json", base / "glossary.json")
+            if bundled_model.is_dir():
+                shutil.copytree(bundled_model, base / "models" / "opus-mt-en-tr-ct2", dirs_exist_ok=True)
 
     for doc in ("README.md", "LICENSE", "PRIVACY_DRAFT.md", "THIRD_PARTY_NOTICES.md", "RELEASE_READINESS.md"):
         if (ROOT / doc).is_file():
