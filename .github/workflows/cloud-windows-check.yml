@@ -82,6 +82,7 @@ jobs:
           $root = Join-Path $env:RUNNER_TEMP 'atra-cloud-install'
           $app = Get-ChildItem -LiteralPath $root -Directory -Filter 'app-1.0.1-*' | Select-Object -First 1
           $env:ATRA_CLOUD_MODEL = Join-Path $app.FullName '_internal/models/opus-mt-en-tr-ct2'
+          $env:PYTHONIOENCODING = 'utf-8'
           @'
           import os
           from pathlib import Path
