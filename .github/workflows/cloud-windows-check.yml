@@ -73,3 +73,60 @@ jobs:
             if ($null -ne $atra -and !$atra.HasExited) { Stop-Process -Id $atra.Id -Force }
             if ($null -ne $file) { $file.Dispose() }
           }
+      - name: Verify offline model translation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          py -3.11 -m pip install --disable-pip-version-check 'ctranslate2==4.8.4' 'sentencepiece==0.2.2'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install translation test dependencies' }
+          $root = Join-Path $env:RUNNER_TEMP 'atra-cloud-install'
+          $app = Get-ChildItem -LiteralPath $root -Directory -Filter 'app-1.0.1-*' | Select-Object -First 1
+          $env:ATRA_CLOUD_MODEL = Join-Path $app.FullName '_internal/models/opus-mt-en-tr-ct2'
+          @'
+          import os
+          from pathlib import Path
+          import ctranslate2
+          import sentencepiece as spm
+          model = Path(os.environ['ATRA_CLOUD_MODEL'])
+          source = spm.SentencePieceProcessor(str(model / 'source.spm'))
+          target = spm.SentencePieceProcessor(str(model / 'target.spm'))
+          engine = ctranslate2.Translator(str(model), device='cpu', compute_type='int8', inter_threads=2, intra_threads=4)
+          prompt = 'Welcome to the game.'
+          tokens = source.encode(prompt, out_type=str) + ['</s>']
+          result = engine.translate_batch([tokens], beam_size=2, max_decoding_length=128)
+          translated = target.decode(result[0].hypotheses[0]).strip()
+          assert translated and translated.lower() != prompt.lower(), translated
+          print('Offline translation:', translated)
+          '@ | py -3.11 -
+          if ($LASTEXITCODE -ne 0) { throw 'Offline translation test failed' }
+      - name: Verify portable package
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'Atra-Portable-Windows-x64.zip'
+          curl.exe --fail --location --retry 3 --output $zip 'https://github.com/ataturukmen420/atra/releases/download/v1.0.1/Atra-Portable-Windows-x64.zip'
+          if ($LASTEXITCODE -ne 0) { throw 'Portable download failed' }
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          if ($hash -ne '0d5ac8bce75641af0f54c5839e8dba38deebf30012f1b23f397e00107bfe115c') { throw 'Portable package hash mismatch' }
+          $portable = Join-Path $env:RUNNER_TEMP 'atra-portable'
+          [IO.Compression.ZipFile]::ExtractToDirectory($zip, $portable)
+          $exe = Join-Path $portable 'Atra/Atra.exe'
+          if (!(Test-Path -LiteralPath $exe)) { throw 'Portable Atra.exe missing' }
+          $env:ATRA_DATA_DIR = Join-Path $env:RUNNER_TEMP 'atra-portable-data'
+          New-Item -ItemType Directory -Path $env:ATRA_DATA_DIR -Force | Out-Null
+          '{"translation_engine":"google"}' | Set-Content -Encoding utf8 (Join-Path $env:ATRA_DATA_DIR 'config.json')
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          try {
+            $found = $false
+            for ($i=0; $i -lt 60; $i++) {
+              Start-Sleep -Seconds 1
+              $process.Refresh()
+              if ($process.HasExited) { throw "Portable app exited: $($process.ExitCode)" }
+              if ($process.MainWindowTitle -like '*Atra*') { $found = $true; break }
+            }
+            if (!$found) { throw 'Portable Atra window not observed' }
+            Write-Host 'Portable package extracted and opened successfully.'
+          } finally {
+            if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
