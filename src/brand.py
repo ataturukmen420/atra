@@ -1,0 +1,20 @@
+"""Atra product identity and semantic Studio material tokens (no runtime side effects)."""
+from pathlib import Path
+
+PRODUCT_NAME = "Atra"
+PRODUCT_TITLE = "Atra — Oyun Çeviri Stüdyosu"
+SIMULATOR_TITLE = "Atra — Oyun Simülatörü"
+ASSETS = Path(__file__).resolve().parents[1] / "assets"
+
+WINDOW = "#17181C"
+SURFACE = "#202126"
+ELEVATED = "#2C2E34"
+RECESSED = "#18191D"
+HAIRLINE = "#36383F"
+TEXT = "#F5F5F7"
+SECONDARY = "#ACADB7"
+MUTED = "#9396A3"
+ACCENT = "#7BA8FF"
+PRIMARY = "#2867DC"
+PRIMARY_HOVER = "#2C6CDD"
+POSITIVE = "#51D88A"
